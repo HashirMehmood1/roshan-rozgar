@@ -185,7 +185,7 @@ export default function WorkerPage() {
               onClick={() => setPhase("confirm")}
               className="text-sm text-ink/50 underline"
             >
-              {dir === "rtl" ? "دستی طور پر بھریں" : "Fill manually"}
+              {t("fillManually")}
             </button>
           </div>
         )}
