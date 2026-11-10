@@ -1,5 +1,6 @@
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+const VERSIONS = ["v1beta", "v1"];
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
 const AREAS = ["G-9", "F-11", "I-8", "H-12", "G-13", "F-7"];
@@ -44,61 +45,111 @@ function extractFirstJson(str) {
   return match ? match[0] : null;
 }
 
+function keyFingerprint() {
+  if (!API_KEY) return "EMPTY";
+  const len = API_KEY.length;
+  if (len < 8) return `${API_KEY.slice(0, 2)}... (length ${len})`;
+  return `${API_KEY.slice(0, 4)}...${API_KEY.slice(-4)} (length ${len})`;
+}
+
+// Shared: try a single Gemini call
+async function geminiPost(version, model, body) {
+  const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": API_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  return { status: res.status, body: text };
+}
+
+// Main chain: for each model, try v1beta then v1
 async function callGemini(prompt) {
-  if (!GEMINI_API_KEY) {
-    return { error: true, message: "GEMINI_API_KEY not set" };
+  if (!API_KEY) {
+    return { error: true, message: "GEMINI_API_KEY_MISSING" };
   }
 
   let lastStatus = 0;
   let lastBody = "";
 
   for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
+    for (const version of VERSIONS) {
+      try {
+        const { status, body } = await geminiPost(version, model, {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.2, maxOutputTokens: 256 },
-        }),
-      });
+        });
 
-      lastStatus = res.status;
+        lastStatus = status;
+        lastBody = body;
 
-      // 401/403/429 → stop immediately, no point trying other models
-      if (res.status === 401 || res.status === 403 || res.status === 429) {
-        lastBody = await res.text().catch(() => "");
-        return { error: true, message: `Gemini ${res.status}: ${lastBody.slice(0, 200)}` };
-      }
+        // 401/403/429 → stop immediately
+        if (status === 401 || status === 403 || status === 429) {
+          return { error: true, message: `Gemini ${status}: ${body.slice(0, 200)}` };
+        }
 
-      // 404/400 → model unavailable, try next
-      if (res.status === 404 || res.status === 400) {
-        lastBody = await res.text().catch(() => "");
+        // 404/400 → try next version/model
+        if (status === 404 || status === 400) continue;
+
+        if (status < 200 || status >= 300) continue;
+
+        // Success — parse the response
+        let data;
+        try { data = JSON.parse(body); } catch { continue; }
+        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!raw) continue;
+
+        return { ok: true, text: raw };
+      } catch {
         continue;
       }
-
-      if (!res.ok) {
-        lastBody = await res.text().catch(() => "");
-        continue;
-      }
-
-      const data = await res.json();
-      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!raw) continue;
-
-      return { ok: true, text: raw };
-    } catch {
-      continue;
     }
   }
 
   return { error: true, message: `ALL_MODELS_FAILED last=${lastStatus}: ${lastBody.slice(0, 200)}` };
 }
 
+// ─── GET: debug endpoint ───
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("debug") !== "1") {
+    return Response.json({ error: "pass ?debug=1" }, { status: 400 });
+  }
+
+  const report = {
+    envKeyPresent: !!API_KEY,
+    keyFingerprint: keyFingerprint(),
+    attempts: [],
+    verdict: "ALL_FAILED",
+  };
+
+  const testBody = { contents: [{ parts: [{ text: "Reply with the single word OK" }] }] };
+  const testModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
+
+  for (const version of VERSIONS) {
+    for (const model of testModels) {
+      try {
+        const { status, body } = await geminiPost(version, model, testBody);
+        const entry = { version, model, status, snippet: body.slice(0, 300) };
+        report.attempts.push(entry);
+        if (status === 200) {
+          report.verdict = `OK ${version}/${model}`;
+          return Response.json(report);
+        }
+      } catch (err) {
+        report.attempts.push({ version, model, status: 0, snippet: `FETCH_ERROR: ${err.message}` });
+      }
+    }
+  }
+
+  return Response.json(report);
+}
+
+// ─── POST: main AI route ───
 export async function POST(request) {
   try {
     const { task, text } = await request.json();
@@ -129,7 +180,6 @@ export async function POST(request) {
       const parsed = JSON.parse(cleaned);
       return Response.json({ result: parsed });
     } catch {
-      // Regex fallback: extract first {...} block
       const jsonStr = extractFirstJson(cleaned);
       if (jsonStr) {
         try {
