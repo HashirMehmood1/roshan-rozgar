@@ -6,7 +6,7 @@ A voice-first, two-sided web marketplace connecting households in Islamabad with
 
 **Live Demo:** https://roshan-rozgar.vercel.app/
 
-**Figma:** [Hashir will add link]
+**Figma:** [Design File](https://www.figma.com/design/HSRWB5fUje8dMmEpP2ImYo/Roshan-Rozgar-%E2%80%94-AI-Web-Forge?node-id=0-1&t=NmAlApLVAPjfm78A-1)
 
 ---
 
