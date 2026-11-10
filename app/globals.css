@@ -1,26 +1,35 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tailwindcss" source(none);
+@source "../app";
+@source "../lib";
+@source "../components";
+@source "../hooks";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: #FF6B00;
+  --color-primary-dark: #E85D00;
+  --color-ink: #111111;
+  --color-cream: #FFF7ED;
+  --color-card-border: #E5E7EB;
+  --color-green: #16A34A;
+  --color-red: #DC2626;
+  --color-amber: #F59E0B;
+  --color-background: #ffffff;
+  --color-foreground: #111111;
+  --font-poppins: "Poppins", sans-serif;
+  --font-nastaliq: "Noto Nastaliq Urdu", serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins);
+  color: var(--color-ink);
+  background: var(--color-background);
+}
+
+.font-nastaliq {
+  font-family: var(--font-nastaliq);
+  line-height: 2.2;
 }
