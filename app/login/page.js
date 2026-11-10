@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/translations";
 import { useSpeech } from "@/hooks/useSpeech";
 import MicButton from "@/components/MicButton";
-import { Phone, Lock, User, MapPin, Wrench, Briefcase } from "lucide-react";
+import { Phone, Lock, User, MapPin, Wrench, Briefcase, Volume2, VolumeX } from "lucide-react";
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
 const AREAS = ["G-9", "F-11", "I-8", "H-12", "G-13", "F-7"];
@@ -16,13 +16,41 @@ const DEFAULT_RATES = {
 
 export default function LoginPage() {
   const { t, dir } = useLanguage();
-  const { startListening, stopListening } = useSpeech();
+  const { startListening, stopListening, speak } = useSpeech();
   const router = useRouter();
-  const [tab, setTab] = useState("login"); // login | signup
+  const [tab, setTab] = useState("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [listeningSignup, setListeningSignup] = useState(false);
   const [listeningLogin, setListeningLogin] = useState(false);
+  const [aiFailed, setAiFailed] = useState(false);
+
+  // Guidance state
+  const [guidanceOn, setGuidanceOn] = useState(true);
+  const spokenRef = useRef(new Set());
+
+  const guide = useCallback((key) => {
+    if (!guidanceOn) return;
+    if (spokenRef.current.has(key)) return;
+    spokenRef.current.add(key);
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    speak(t(key));
+  }, [guidanceOn, speak, t]);
+
+  const toggleGuidance = () => {
+    setGuidanceOn((prev) => {
+      if (prev) {
+        // Turning OFF — cancel speech and clear spoken set
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+        spokenRef.current.clear();
+      }
+      return !prev;
+    });
+  };
 
   // Login fields
   const [loginPhone, setLoginPhone] = useState("");
@@ -44,7 +72,11 @@ export default function LoginPage() {
 
   // Extract phone from spoken text
   const extractPhone = (text) => {
-    const normalized = normalizeDigits(text).replace(/[^0-9]/g, "");
+    let normalized = normalizeDigits(text).replace(/[^0-9]/g, "");
+    // leading 92 → 0 (international format)
+    if (normalized.startsWith("92") && normalized.length >= 12) {
+      normalized = "0" + normalized.slice(2);
+    }
     const match = normalized.match(/(03\d{9})/);
     return match ? match[1] : null;
   };
@@ -52,6 +84,7 @@ export default function LoginPage() {
   // Signup voice: speak profile → AI extract → prefill
   const handleSignupVoice = () => {
     if (listeningSignup) { stopListening(); setListeningSignup(false); return; }
+    setAiFailed(false);
     setListeningSignup(true);
     startListening(async (transcript) => {
       setListeningSignup(false);
@@ -62,14 +95,18 @@ export default function LoginPage() {
           body: JSON.stringify({ task: "profile", text: transcript }),
         });
         const data = await res.json();
-        if (!data.error) {
+        if (data.error) {
+          setAiFailed(true);
+        } else {
           if (data.name) setName(data.name);
           if (TRADES.includes(data.trade)) { setTrade(data.trade); setRate(DEFAULT_RATES[data.trade] || 1500); }
           if (AREAS.includes(data.area)) setArea(data.area);
           if (data.rate) setRate(Number(data.rate));
           if (data.experience_years) setExperience(Number(data.experience_years));
         }
-      } catch { /* AI failed — user fills manually */ }
+      } catch {
+        setAiFailed(true);
+      }
     });
   };
 
@@ -79,9 +116,9 @@ export default function LoginPage() {
     setListeningLogin(true);
     startListening((transcript) => {
       setListeningLogin(false);
-      const phone = extractPhone(transcript);
-      if (phone) {
-        setLoginPhone(phone);
+      const ph = extractPhone(transcript);
+      if (ph) {
+        setLoginPhone(ph);
       } else {
         setError(t("voicePhoneError"));
       }
@@ -116,7 +153,6 @@ export default function LoginPage() {
     if (!name.trim() || !phone.trim() || pin.length !== 4) return;
     setLoading(true);
     try {
-      // Check if phone already exists
       const { data: existing } = await supabase
         .from("workers")
         .select("id")
@@ -127,7 +163,6 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      // Insert new worker — mirrors worker/page.js handleSave columns
       const { data, error: err } = await supabase.from("workers").insert({
         name: name.trim(),
         phone: phone.trim(),
@@ -171,11 +206,24 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-3xl shadow-xl p-6 space-y-5">
+        <div className="relative bg-white rounded-3xl shadow-xl p-6 space-y-5">
+          {/* Guidance toggle — top corner */}
+          <button
+            onClick={toggleGuidance}
+            className="absolute top-4 right-4 p-2 rounded-full hover:bg-cream transition-colors"
+            aria-label={t("voiceGuide")}
+            title={t("voiceGuide")}
+          >
+            {guidanceOn
+              ? <Volume2 size={20} className="text-primary" />
+              : <VolumeX size={20} className="text-ink/40" />
+            }
+          </button>
+
           {/* Tabs */}
           <div className="flex rounded-full bg-cream p-1">
             <button
-              onClick={() => { setTab("login"); setError(""); }}
+              onClick={() => { setTab("login"); setError(""); guide("loginGuide"); }}
               className={`flex-1 py-3 rounded-full text-base font-semibold transition-colors ${
                 tab === "login" ? "bg-primary text-white" : "text-ink/60"
               }`}
@@ -183,7 +231,7 @@ export default function LoginPage() {
               {t("login")}
             </button>
             <button
-              onClick={() => { setTab("signup"); setError(""); }}
+              onClick={() => { setTab("signup"); setError(""); guide("signupGuide"); }}
               className={`flex-1 py-3 rounded-full text-base font-semibold transition-colors ${
                 tab === "signup" ? "bg-primary text-white" : "text-ink/60"
               }`}
@@ -199,6 +247,13 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* AI offline banner */}
+          {aiFailed && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-amber-800 text-sm font-nastaliq text-center" dir="rtl">
+              {t("aiOfflineNote")}
+            </div>
+          )}
+
           {/* ─── LOGIN TAB ─── */}
           {tab === "login" && (
             <div className="space-y-4">
@@ -211,6 +266,7 @@ export default function LoginPage() {
                       type="tel"
                       value={loginPhone}
                       onChange={(e) => setLoginPhone(e.target.value)}
+                      onFocus={() => guide("askPhone")}
                       placeholder="03XX-XXXXXXX"
                       className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
                     />
@@ -229,10 +285,12 @@ export default function LoginPage() {
                     maxLength={4}
                     value={loginPin}
                     onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ""))}
+                    onFocus={() => guide("askPin")}
                     placeholder="● ● ● ●"
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg tracking-[0.5em] text-center focus:border-primary outline-none"
                   />
                 </div>
+                <p className="text-xs text-ink/50 mt-1 font-nastaliq" dir="rtl">{t("pinPrivateNote")}</p>
               </div>
               <button
                 onClick={handleLogin}
@@ -252,6 +310,7 @@ export default function LoginPage() {
                 <MicButton listening={listeningSignup} onClick={handleSignupVoice} size={72} />
                 <p className="text-sm text-ink/60 font-nastaliq text-center" dir="rtl">{t("speakProfile")}</p>
               </div>
+
               {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-ink/70 mb-1">{t("name")}</label>
@@ -260,6 +319,7 @@ export default function LoginPage() {
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onFocus={() => guide("askName")}
                     placeholder={t("name")}
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg font-nastaliq focus:border-primary outline-none"
                     dir="rtl"
@@ -276,6 +336,7 @@ export default function LoginPage() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    onFocus={() => guide("askPhone")}
                     placeholder="03XX-XXXXXXX"
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
                   />
@@ -293,6 +354,7 @@ export default function LoginPage() {
                     maxLength={4}
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                    onFocus={() => guide("askPin")}
                     placeholder="● ● ● ●"
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg tracking-[0.5em] text-center focus:border-primary outline-none"
                   />
@@ -308,6 +370,7 @@ export default function LoginPage() {
                   <select
                     value={trade}
                     onChange={(e) => { setTrade(e.target.value); setRate(DEFAULT_RATES[e.target.value] || 1500); }}
+                    onFocus={() => guide("askTrade")}
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg bg-white focus:border-primary outline-none appearance-none"
                   >
                     {TRADES.map((tr) => (
@@ -325,6 +388,7 @@ export default function LoginPage() {
                   <select
                     value={area}
                     onChange={(e) => setArea(e.target.value)}
+                    onFocus={() => guide("askArea")}
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg bg-white focus:border-primary outline-none appearance-none"
                   >
                     {AREAS.map((a) => (
@@ -344,6 +408,7 @@ export default function LoginPage() {
                     inputMode="numeric"
                     value={rate}
                     onChange={(e) => setRate(Number(e.target.value) || 0)}
+                    onFocus={() => guide("askRate")}
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
                   />
                 </div>
@@ -359,6 +424,7 @@ export default function LoginPage() {
                     inputMode="numeric"
                     value={experience}
                     onChange={(e) => setExperience(Number(e.target.value) || 0)}
+                    onFocus={() => guide("askExperience")}
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
                   />
                 </div>
