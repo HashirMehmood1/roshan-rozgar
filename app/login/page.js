@@ -21,9 +21,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [listeningSignup, setListeningSignup] = useState(false);
   const [listeningLogin, setListeningLogin] = useState(false);
-  const [aiFailed, setAiFailed] = useState(false);
 
   // Guidance state
   const [guidanceOn, setGuidanceOn] = useState(true);
@@ -95,35 +93,6 @@ export default function LoginPage() {
     }
     const match = normalized.match(/(03\d{9})/);
     return match ? match[1] : null;
-  };
-
-  // Signup voice: speak profile → AI extract → prefill
-  const handleSignupVoice = () => {
-    if (listeningSignup) { stopListening(); setListeningSignup(false); return; }
-    setAiFailed(false);
-    setListeningSignup(true);
-    startListening(async (transcript) => {
-      setListeningSignup(false);
-      try {
-        const res = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task: "profile", text: transcript }),
-        });
-        const data = await res.json();
-        if (data.error) {
-          setAiFailed(true);
-        } else {
-          if (data.name) setName(data.name);
-          if (TRADES.includes(data.trade)) { setTrade(data.trade); setRate(DEFAULT_RATES[data.trade] || 1500); }
-          if (AREAS.includes(data.area)) setArea(data.area);
-          if (data.rate) setRate(Number(data.rate));
-          if (data.experience_years) setExperience(Number(data.experience_years));
-        }
-      } catch {
-        setAiFailed(true);
-      }
-    });
   };
 
   // Login voice: speak phone number
@@ -264,13 +233,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* AI offline banner */}
-          {aiFailed && (
-            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-amber-800 text-sm font-nastaliq text-center" dir="rtl">
-              {t("aiOfflineNote")}
-            </div>
-          )}
-
           {/* ─── LOGIN TAB ─── */}
           {tab === "login" && (
             <div className="space-y-4">
@@ -322,12 +284,6 @@ export default function LoginPage() {
           {/* ─── SIGNUP TAB ─── */}
           {tab === "signup" && (
             <div className="space-y-4">
-              {/* Voice profile input */}
-              <div className="flex flex-col items-center gap-2 py-2">
-                <MicButton listening={listeningSignup} onClick={handleSignupVoice} size={72} />
-                <p className="text-sm text-ink/60 font-nastaliq text-center" dir="rtl">{t("speakProfile")}</p>
-              </div>
-
               {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-ink/70 mb-1">{t("name")}</label>
