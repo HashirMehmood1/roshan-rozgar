@@ -70,81 +70,89 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col gap-12 pb-12" dir={dir}>
 
-      {/* ===== 1. HERO — 2 columns desktop, stacked mobile ===== */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center py-6">
-        {/* Left column: headline + voice search */}
-        <div className="flex flex-col gap-6">
-          <h1 className="font-nastaliq text-4xl lg:text-5xl font-bold text-ink leading-[2.2]" dir="rtl">
-            {t("heroTitle")}
-          </h1>
-          <p className="text-lg text-ink/70" dir={dir}>
-            {t("heroSubtitle")}
-          </p>
+      {/* ===== 1. HERO — full-width photo background ===== */}
+      <section className="relative -mx-4 -mt-6 min-h-[420px] lg:min-h-[520px] flex flex-col justify-between overflow-hidden">
+        {/* Background image */}
+        <div className="absolute inset-0">
+          <img
+            src="/hero-bg.jpg"
+            alt=""
+            className="w-full h-full object-cover object-center"
+          />
+          {/* Gradient overlay: cream fade from top-left, transparent middle, white at bottom */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#FFF7ED]/70 via-transparent to-white" />
+          <div className={`absolute inset-0 ${dir === 'rtl' ? 'bg-gradient-to-l' : 'bg-gradient-to-r'} from-[#FFF7ED]/60 via-transparent to-transparent`} />
+        </div>
 
-          {/* Voice search bar */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder={t("searchPlaceholder")}
-                className="w-full min-h-[56px] pl-12 pr-4 rounded-full border-2 border-card-border focus:border-primary outline-none text-lg"
-                dir={dir}
-              />
-            </div>
-            <MicButton listening={listening} onClick={handleMic} size={56} />
-            <button
-              onClick={handleSearch}
-              className="min-h-[56px] px-6 bg-primary hover:bg-primary-dark text-white text-lg font-semibold rounded-full transition-colors flex items-center gap-2"
-            >
-              <Search size={20} />
-            </button>
-          </div>
-
-          {/* Example chips */}
-          <div className="flex flex-wrap gap-2">
-            {exampleChips.map((chip, i) => (
-              <button
-                key={i}
-                onClick={() => handleChip(chip)}
-                className="px-4 py-2 rounded-full bg-cream text-ink/80 text-sm font-medium hover:bg-primary/10 transition-colors"
-              >
-                {chip}
-              </button>
-            ))}
+        {/* Headline — sits in the sky area */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 pt-8 lg:pt-12 w-full">
+          <div className={`max-w-lg ${dir === 'rtl' ? 'mr-0 ml-auto' : 'ml-0 mr-auto'}`}>
+            <h1 className="font-nastaliq text-4xl lg:text-5xl font-bold leading-[2.2]" dir="rtl">
+              <span className="text-ink">گھر کا کام ہے؟</span>
+              <br />
+              <span className="text-[#E85D00]">کاریگر یہیں، ابھی</span>
+            </h1>
+            <p className="text-lg text-ink/80 mt-2 font-medium" dir={dir}>
+              {t("heroSubtitle")}
+            </p>
           </div>
         </div>
 
-        {/* Right column: floating worker card + stat chips */}
-        <div className="flex flex-col items-center gap-4">
-          {topWorker ? (
-            <div className="w-full max-w-sm">
-              <WorkerCard worker={topWorker} />
+        {/* Voice search pill — floated over lower third */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 pb-8 w-full">
+          <div className="max-w-xl mx-auto">
+            <div className="flex items-center gap-3 bg-white/95 backdrop-blur-sm rounded-full shadow-xl p-2">
+              <div className="flex-1 relative">
+                <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  placeholder={t("searchPlaceholder")}
+                  className="w-full min-h-[48px] pl-12 pr-4 rounded-full bg-transparent outline-none text-lg"
+                  dir={dir}
+                />
+              </div>
+              <MicButton listening={listening} onClick={handleMic} size={48} />
+              <button
+                onClick={handleSearch}
+                className="min-h-[48px] px-5 bg-primary hover:bg-primary-dark text-white text-lg font-semibold rounded-full transition-colors flex items-center gap-2"
+              >
+                <Search size={20} />
+              </button>
             </div>
-          ) : (
-            <div className="w-full max-w-sm h-64 rounded-2xl bg-cream animate-pulse" />
-          )}
-
-          {/* Stat chips */}
-          <div className="flex gap-3 flex-wrap justify-center">
-            <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
-              <Shield size={16} className="text-primary" />
-              {t("trustedBy")}
-            </span>
-            <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
-              <Volume2 size={16} className="text-primary" />
-              {t("voiceFirst")}
-            </span>
-            <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
-              <MessageSquare size={16} className="text-primary" />
-              {t("noTyping")}
-            </span>
+            {/* Example chips */}
+            <div className="flex flex-wrap gap-2 mt-3 justify-center">
+              {exampleChips.map((chip, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleChip(chip)}
+                  className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm text-ink/80 text-sm font-medium hover:bg-white transition-colors shadow-sm"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* ===== TRUST STRIP — below hero ===== */}
+      <div className="flex gap-3 flex-wrap justify-center -mt-6">
+        <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
+          <Shield size={16} className="text-primary" />
+          {t("trustedBy")}
+        </span>
+        <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
+          <Volume2 size={16} className="text-primary" />
+          {t("voiceFirst")}
+        </span>
+        <span className="flex items-center gap-1.5 px-4 py-2 bg-cream rounded-full text-sm font-medium">
+          <MessageSquare size={16} className="text-primary" />
+          {t("noTyping")}
+        </span>
+      </div>
 
       {/* ===== 2. ROLE CHOOSER ===== */}
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -240,13 +248,8 @@ export default function LandingPage() {
       {/* ===== 7. FOOTER ===== */}
       <footer className="bg-ink rounded-2xl p-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="4"/>
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-            </svg>
-          </div>
-          <span className="text-white font-semibold">Roshan Rozgar</span>
+          <img src="/logo.png" alt="Roshan Rozgar" className="w-8 h-8 rounded-lg" />
+          <span className="text-white font-extrabold" style={{ fontFamily: "'Poppins', sans-serif" }}>Roshan Rozgar</span>
         </div>
         <p className="font-nastaliq text-white/60 text-sm" dir="rtl">
           {t("footerTagline")}

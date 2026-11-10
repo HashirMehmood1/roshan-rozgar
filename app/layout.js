@@ -5,6 +5,7 @@ import LanguageSwitch from "@/components/LanguageSwitch";
 export const metadata = {
   title: "Roshan Rozgar — روشن روزگار",
   description: "Voice-first marketplace for skilled trade workers in Islamabad",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({ children }) {
@@ -14,7 +15,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
@@ -23,18 +24,13 @@ export default function RootLayout({ children }) {
           {/* Sticky Header */}
           <header className="sticky top-0 z-50 bg-white border-b border-card-border">
             <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="4"/>
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-                  </svg>
-                </div>
+              <a href="/" className="flex items-center gap-3">
+                <img src="/logo.png" alt="Roshan Rozgar" className="w-10 h-10 rounded-xl shrink-0" />
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-ink leading-tight">Roshan Rozgar</span>
+                  <span className="text-sm font-extrabold text-ink leading-tight" style={{ fontFamily: "'Poppins', sans-serif" }}>Roshan Rozgar</span>
                   <span className="font-nastaliq text-xs text-ink/70 leading-tight">روشن روزگار</span>
                 </div>
-              </div>
+              </a>
               <LanguageSwitch />
             </div>
           </header>
