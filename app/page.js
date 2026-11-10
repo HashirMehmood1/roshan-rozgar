@@ -158,16 +158,16 @@ export default function LandingPage() {
               className="flex flex-col items-center gap-3 p-8 rounded-2xl bg-ink text-white hover:bg-ink/90 transition-colors min-h-[56px]"
             >
               <Search size={40} />
-              <span className="text-xl font-semibold">{t("findWorkers")}</span>
-              <span className="text-sm text-white/70">{t("heroSubtitle")}</span>
+              <span className="text-xl font-semibold">{t("roleCustomerTitle")}</span>
+              <span className="text-sm text-white/70">{t("roleCustomerSub")}</span>
             </button>
             <button
               onClick={() => router.push("/worker")}
               className="flex flex-col items-center gap-3 p-8 rounded-2xl bg-primary text-white hover:bg-primary-dark transition-colors min-h-[56px]"
             >
               <Wrench size={40} />
-              <span className="text-xl font-semibold">{t("registerNow")}</span>
-              <span className="text-sm text-white/70">{t("workerCtaSub")}</span>
+              <span className="text-xl font-semibold">{t("roleWorkerTitle")}</span>
+              <span className="text-sm text-white/70">{t("roleWorkerSub")}</span>
             </button>
           </div>
 
