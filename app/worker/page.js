@@ -82,7 +82,31 @@ export default function WorkerPage() {
     });
   };
 
+  // AI offline flag
+  const [aiFailed, setAiFailed] = useState(false);
+
+  // Keyword → trade fallback
+  const KEYWORD_MAP = [
+    { keywords: ["bijli", "بجلی", "light", "wire", "electric", "بتی"], trade: "electrician" },
+    { keywords: ["paani", "پانی", "nal", "نل", "pipe", "plumb"], trade: "plumber" },
+    { keywords: ["ac", "ائر", "air condition", "thanda", "ٹھنڈا"], trade: "ac_technician" },
+    { keywords: ["darwaza", "دروازہ", "lakri", "لکڑی", "wood", "almari"], trade: "carpenter" },
+    { keywords: ["gaari", "گاڑی", "car", "engine", "motor"], trade: "mechanic" },
+    { keywords: ["rang", "رنگ", "paint", "پینٹ", "wall"], trade: "painter" },
+  ];
+
+  const keywordDetectTrade = (text) => {
+    const lower = text.toLowerCase();
+    for (const entry of KEYWORD_MAP) {
+      for (const kw of entry.keywords) {
+        if (lower.includes(kw)) return entry.trade;
+      }
+    }
+    return null;
+  };
+
   const extractProfile = async (text) => {
+    setAiFailed(false);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -96,10 +120,19 @@ export default function WorkerPage() {
         setArea(data.result.area || "G-9");
         setRate(data.result.rate || DEFAULT_RATES[data.result.trade] || 1500);
         setExperience(data.result.experience_years || 3);
+        setPhase("confirm");
+        return;
       }
     } catch {
-      // Fallback: let user fill manually
+      // fall through to keyword fallback
     }
+    // AI failed — try keyword match for trade, show aiOfflineNote
+    const matched = keywordDetectTrade(text);
+    if (matched) {
+      setTrade(matched);
+      setRate(DEFAULT_RATES[matched] || 1500);
+    }
+    setAiFailed(true);
     setPhase("confirm");
   };
 
@@ -193,6 +226,12 @@ export default function WorkerPage() {
         {phase === "confirm" && (
           <div className="max-w-lg mx-auto space-y-5">
             <h2 className="font-nastaliq text-xl font-semibold text-center" dir="rtl">{t("confirmProfile")}</h2>
+
+            {aiFailed && (
+              <div className="bg-amber/10 border border-amber/30 rounded-2xl p-3 text-sm text-ink/70">
+                {t("aiOfflineNote")}
+              </div>
+            )}
 
             {/* Name */}
             <div>

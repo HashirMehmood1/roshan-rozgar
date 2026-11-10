@@ -33,3 +33,9 @@ body {
   font-family: var(--font-nastaliq);
   line-height: 2.2;
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}

@@ -42,6 +42,11 @@ function CustomerPageInner() {
   const [filterTrade, setFilterTrade] = useState(null); // null = all
   const [filterArea, setFilterArea] = useState(null); // null = all
 
+  // Search + AI state
+  const [searching, setSearching] = useState(false);
+  const [aiFailed, setAiFailed] = useState(false);
+  const [shakeInput, setShakeInput] = useState(false);
+
   // Workers + booking
   const [workers, setWorkers] = useState([]);
   const [bookingWorker, setBookingWorker] = useState(null);
@@ -85,8 +90,29 @@ function CustomerPageInner() {
     setWorkers(data || []);
   }, []);
 
-  // AI detect
+  // Keyword → trade fallback map
+  const KEYWORD_MAP = [
+    { keywords: ["bijli", "بجلی", "light", "wire", "switch", "electric", "fuse", "بتی"], trade: "electrician" },
+    { keywords: ["paani", "پانی", "nal", "نل", "pipe", "leak", "ٹپک", "plumb"], trade: "plumber" },
+    { keywords: ["ac", "ائر", "air condition", "thanda", "ٹھنڈا", "cool", "کولر"], trade: "ac_technician" },
+    { keywords: ["darwaza", "دروازہ", "lakri", "لکڑی", "wood", "almari", "الماری", "furniture"], trade: "carpenter" },
+    { keywords: ["gaari", "گاڑی", "car", "engine", "انجن", "brake", "بریک", "motor"], trade: "mechanic" },
+    { keywords: ["rang", "رنگ", "paint", "پینٹ", "wall", "دیوار", "color"], trade: "painter" },
+  ];
+
+  const keywordDetect = (text) => {
+    const lower = text.toLowerCase();
+    for (const entry of KEYWORD_MAP) {
+      for (const kw of entry.keywords) {
+        if (lower.includes(kw)) return entry.trade;
+      }
+    }
+    return null;
+  };
+
+  // AI detect with keyword fallback
   const detectProblem = async (text) => {
+    setAiFailed(false);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -101,9 +127,17 @@ function CustomerPageInner() {
         }
         setAiUrgency(data.result.urgency || "normal");
         setAiSummary(data.result.summary || "");
+        return;
       }
     } catch {
-      // fallback: manual filter
+      // fall through to keyword fallback
+    }
+    // Keyword fallback
+    const matched = keywordDetect(text);
+    if (matched) {
+      setAiTrade(matched);
+      setFilterTrade(matched);
+      setAiFailed(true);
     }
   };
 
@@ -117,11 +151,16 @@ function CustomerPageInner() {
   };
 
   // Find workers button
-  const handleFind = () => {
-    if (problemText.trim()) {
-      detectProblem(problemText.trim());
+  const handleFind = async () => {
+    if (!problemText.trim()) {
+      setShakeInput(true);
+      setTimeout(() => setShakeInput(false), 600);
+      return;
     }
-    fetchWorkers();
+    setSearching(true);
+    await detectProblem(problemText.trim());
+    await fetchWorkers();
+    setSearching(false);
   };
 
   // Save customer setup
@@ -234,17 +273,21 @@ function CustomerPageInner() {
           <input
             value={problemText}
             onChange={(e) => setProblemText(e.target.value)}
-            className="flex-1 px-4 py-3 border border-card-border rounded-xl text-lg font-nastaliq"
+            className={`flex-1 px-4 py-3 border rounded-xl text-lg font-nastaliq transition-colors ${shakeInput ? "border-red animate-[shake_0.3s_ease-in-out_0s_2]" : "border-card-border"}`}
             dir="rtl"
             placeholder={t("descProblem")}
           />
           <MicButton listening={listening} onClick={handleMic} size={56} />
         </div>
+        {shakeInput && (
+          <p className="text-red text-sm font-medium">{t("typeFirst")}</p>
+        )}
         <button
           onClick={handleFind}
-          className="w-full min-h-[56px] bg-primary hover:bg-primary-dark text-white text-lg font-semibold rounded-full transition-colors"
+          disabled={searching}
+          className="w-full min-h-[56px] bg-primary hover:bg-primary-dark text-white text-lg font-semibold rounded-full transition-colors disabled:opacity-60"
         >
-          {t("findWorkers")}
+          {searching ? t("searching") : t("findWorkers")}
         </button>
       </div>
 
@@ -258,6 +301,13 @@ function CustomerPageInner() {
             </span>
           )}
           <p className="font-nastaliq text-ink/80 flex-1" dir="rtl">{aiSummary}</p>
+        </div>
+      )}
+
+      {/* AI offline note when keyword fallback was used */}
+      {aiFailed && (
+        <div className="bg-amber/10 border border-amber/30 rounded-2xl p-3 text-sm text-ink/70">
+          {t("aiOfflineNote")}
         </div>
       )}
 
