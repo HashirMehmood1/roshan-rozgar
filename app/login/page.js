@@ -15,7 +15,7 @@ const DEFAULT_RATES = {
 };
 
 export default function LoginPage() {
-  const { t, dir } = useLanguage();
+  const { t, dir, lang } = useLanguage();
   const { startListening, stopListening, speak } = useSpeech();
   const router = useRouter();
   const [tab, setTab] = useState("login");
@@ -28,21 +28,37 @@ export default function LoginPage() {
   // Guidance state
   const [guidanceOn, setGuidanceOn] = useState(true);
   const spokenRef = useRef(new Set());
+  const audioRef = useRef(null);
 
   const guide = useCallback((key) => {
     if (!guidanceOn) return;
     if (spokenRef.current.has(key)) return;
     spokenRef.current.add(key);
+
+    // Stop any current audio/speech
+    if (audioRef.current) { try { audioRef.current.pause(); } catch {} }
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    speak(t(key));
-  }, [guidanceOn, speak, t]);
+
+    if (lang === "ur") {
+      // Try MP3 first, fall back to TTS
+      const audio = new Audio("/audio/guidance/" + key + ".mp3");
+      audioRef.current = audio;
+      audio.play().catch(() => {
+        // MP3 missing or error — fall back to speechSynthesis
+        speak(t(key));
+      });
+    } else {
+      speak(t(key));
+    }
+  }, [guidanceOn, lang, speak, t]);
 
   const toggleGuidance = () => {
     setGuidanceOn((prev) => {
       if (prev) {
-        // Turning OFF — cancel speech and clear spoken set
+        // Turning OFF — pause audio, cancel speech, clear spoken set
+        if (audioRef.current) { try { audioRef.current.pause(); } catch {} }
         if (typeof window !== "undefined" && window.speechSynthesis) {
           window.speechSynthesis.cancel();
         }
@@ -121,6 +137,7 @@ export default function LoginPage() {
         setLoginPhone(ph);
       } else {
         setError(t("voicePhoneError"));
+        guide("voicePhoneError");
       }
     });
   };
