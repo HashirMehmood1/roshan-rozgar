@@ -1,6 +1,7 @@
 import "./globals.css";
 import { LanguageProvider } from "@/lib/translations";
 import LanguageSwitch from "@/components/LanguageSwitch";
+import HeaderAuth from "@/components/HeaderAuth";
 
 export const metadata = {
   title: "Roshan Rozgar — روشن روزگار",
@@ -31,7 +32,10 @@ export default function RootLayout({ children }) {
                   <span className="font-nastaliq text-xs text-ink/70 leading-tight">روشن روزگار</span>
                 </div>
               </a>
-              <LanguageSwitch />
+              <div className="flex items-center gap-2">
+                <LanguageSwitch />
+                <HeaderAuth />
+              </div>
             </div>
           </header>
 
