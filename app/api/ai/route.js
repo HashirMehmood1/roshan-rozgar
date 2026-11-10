@@ -1,5 +1,5 @@
 const API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+const MODELS = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
 const VERSIONS = ["v1beta", "v1"];
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
@@ -128,7 +128,7 @@ export async function GET(request) {
   };
 
   const testBody = { contents: [{ parts: [{ text: "Reply with the single word OK" }] }] };
-  const testModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
+  const testModels = ["gemini-3.8-flash", "gemini-2.5-flash"];
 
   for (const version of VERSIONS) {
     for (const model of testModels) {
