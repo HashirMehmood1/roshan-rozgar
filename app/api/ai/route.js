@@ -1,6 +1,6 @@
-const API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const MODELS = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
-const VERSIONS = ["v1beta", "v1"];
+const GEMINI_KEY = (process.env.GEMINI_API_KEY || "").trim();
+const OPENAI_KEY = (process.env.OPENAI_API_KEY || "").trim();
+const OPENAI_MODEL = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
 const AREAS = ["G-9", "F-11", "I-8", "H-12", "G-13", "F-7"];
@@ -45,21 +45,28 @@ function extractFirstJson(str) {
   return match ? match[0] : null;
 }
 
-function keyFingerprint() {
-  if (!API_KEY) return "EMPTY";
-  const len = API_KEY.length;
-  if (len < 8) return `${API_KEY.slice(0, 2)}... (length ${len})`;
-  return `${API_KEY.slice(0, 4)}...${API_KEY.slice(-4)} (length ${len})`;
+function fingerprint(key) {
+  if (!key) return "EMPTY";
+  const len = key.length;
+  if (len < 8) return `${key.slice(0, 2)}... (length ${len})`;
+  return `${key.slice(0, 4)}...${key.slice(-4)} (length ${len})`;
 }
 
-// Shared: try a single Gemini call
-async function geminiPost(version, model, body) {
-  const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
-  const res = await fetch(url, {
+// ─── OpenAI call ───
+async function callOpenAI(prompt, jsonMode) {
+  const body = {
+    model: OPENAI_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.2,
+    max_tokens: 256,
+  };
+  if (jsonMode) body.response_format = { type: "json_object" };
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-goog-api-key": API_KEY,
+      "Authorization": `Bearer ${OPENAI_KEY}`,
     },
     body: JSON.stringify(body),
   });
@@ -67,50 +74,78 @@ async function geminiPost(version, model, body) {
   return { status: res.status, body: text };
 }
 
-// Main chain: for each model, try v1beta then v1
-async function callGemini(prompt) {
-  if (!API_KEY) {
-    return { error: true, message: "GEMINI_API_KEY_MISSING" };
-  }
+// ─── Gemini call (single-shot gemini-3.8-flash on v1beta) ───
+async function callGeminiOnce(prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": GEMINI_KEY,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 256 },
+    }),
+  });
+  const text = await res.text();
+  return { status: res.status, body: text };
+}
 
-  let lastStatus = 0;
-  let lastBody = "";
+// ─── Extract text from provider responses ───
+function extractOpenAIText(body) {
+  try {
+    const data = JSON.parse(body);
+    return data?.choices?.[0]?.message?.content || null;
+  } catch { return null; }
+}
 
-  for (const model of MODELS) {
-    for (const version of VERSIONS) {
-      try {
-        const { status, body } = await geminiPost(version, model, {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 256 },
-        });
+function extractGeminiText(body) {
+  try {
+    const data = JSON.parse(body);
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch { return null; }
+}
 
-        lastStatus = status;
-        lastBody = body;
+// ─── Unified provider chain ───
+async function callAI(prompt, task) {
+  const jsonMode = task !== "summarize";
+  let openaiErr = "OPENAI_KEY_MISSING";
+  let geminiErr = "GEMINI_KEY_MISSING";
 
-        // 401/403/429 → stop immediately
-        if (status === 401 || status === 403 || status === 429) {
-          return { error: true, message: `Gemini ${status}: ${body.slice(0, 200)}` };
-        }
-
-        // 404/400 → try next version/model
-        if (status === 404 || status === 400) continue;
-
-        if (status < 200 || status >= 300) continue;
-
-        // Success — parse the response
-        let data;
-        try { data = JSON.parse(body); } catch { continue; }
-        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!raw) continue;
-
-        return { ok: true, text: raw };
-      } catch {
-        continue;
+  // 1) Try OpenAI
+  if (OPENAI_KEY) {
+    try {
+      const { status, body } = await callOpenAI(prompt, jsonMode);
+      if (status >= 200 && status < 300) {
+        const raw = extractOpenAIText(body);
+        if (raw) return { ok: true, text: raw };
+        openaiErr = `200 but empty content`;
+      } else {
+        openaiErr = `${status}: ${body.slice(0, 200)}`;
       }
+    } catch (err) {
+      openaiErr = `FETCH_ERROR: ${err.message}`;
     }
   }
 
-  return { error: true, message: `ALL_MODELS_FAILED last=${lastStatus}: ${lastBody.slice(0, 200)}` };
+  // 2) Fallback: Gemini 3.8-flash once
+  if (GEMINI_KEY) {
+    try {
+      const { status, body } = await callGeminiOnce(prompt);
+      if (status >= 200 && status < 300) {
+        const raw = extractGeminiText(body);
+        if (raw) return { ok: true, text: raw };
+        geminiErr = `200 but empty content`;
+      } else {
+        geminiErr = `${status}: ${body.slice(0, 200)}`;
+      }
+    } catch (err) {
+      geminiErr = `FETCH_ERROR: ${err.message}`;
+    }
+  }
+
+  return { error: true, message: `AI_ALL_PROVIDERS_FAILED: OpenAI ${openaiErr} | Gemini ${geminiErr}` };
 }
 
 // ─── GET: debug endpoint ───
@@ -121,28 +156,42 @@ export async function GET(request) {
   }
 
   const report = {
-    envKeyPresent: !!API_KEY,
-    keyFingerprint: keyFingerprint(),
+    openaiKeyPresent: !!OPENAI_KEY,
+    openaiKeyFingerprint: fingerprint(OPENAI_KEY),
+    openaiModel: OPENAI_MODEL,
+    geminiKeyPresent: !!GEMINI_KEY,
+    geminiKeyFingerprint: fingerprint(GEMINI_KEY),
     attempts: [],
     verdict: "ALL_FAILED",
   };
 
-  const testBody = { contents: [{ parts: [{ text: "Reply with the single word OK" }] }] };
-  const testModels = ["gemini-3.8-flash", "gemini-2.5-flash"];
-
-  for (const version of VERSIONS) {
-    for (const model of testModels) {
-      try {
-        const { status, body } = await geminiPost(version, model, testBody);
-        const entry = { version, model, status, snippet: body.slice(0, 300) };
-        report.attempts.push(entry);
-        if (status === 200) {
-          report.verdict = `OK ${version}/${model}`;
-          return Response.json(report);
-        }
-      } catch (err) {
-        report.attempts.push({ version, model, status: 0, snippet: `FETCH_ERROR: ${err.message}` });
+  // Test OpenAI first
+  if (OPENAI_KEY) {
+    try {
+      const { status, body } = await callOpenAI(
+        'Reply ONLY with the JSON object: {"ok":true}', true
+      );
+      report.attempts.push({ provider: "openai", model: OPENAI_MODEL, status, snippet: body.slice(0, 300) });
+      if (status === 200) {
+        report.verdict = `OK openai/${OPENAI_MODEL}`;
+        return Response.json(report);
       }
+    } catch (err) {
+      report.attempts.push({ provider: "openai", model: OPENAI_MODEL, status: 0, snippet: `FETCH_ERROR: ${err.message}` });
+    }
+  }
+
+  // Fallback: test Gemini 3.8-flash
+  if (GEMINI_KEY) {
+    try {
+      const { status, body } = await callGeminiOnce("Reply with the single word OK");
+      report.attempts.push({ provider: "gemini", model: "gemini-3.8-flash", status, snippet: body.slice(0, 300) });
+      if (status === 200) {
+        report.verdict = "OK gemini/gemini-3.8-flash";
+        return Response.json(report);
+      }
+    } catch (err) {
+      report.attempts.push({ provider: "gemini", model: "gemini-3.8-flash", status: 0, snippet: `FETCH_ERROR: ${err.message}` });
     }
   }
 
@@ -163,7 +212,7 @@ export async function POST(request) {
       return Response.json({ error: true, message: "unknown task" }, { status: 400 });
     }
 
-    const result = await callGemini(promptFn(text));
+    const result = await callAI(promptFn(text), task);
 
     if (result.error) {
       return Response.json({ error: true, message: result.message }, { status: 500 });

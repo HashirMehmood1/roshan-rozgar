@@ -53,9 +53,9 @@ Millions of skilled trade workers in Pakistan's informal economy are locked out 
 
 | Service | What It Does | What Breaks Without It |
 |---------|-------------|----------------------|
-| **Gemini API** (profile extraction) | Extracts name, trade, area, rate, experience from spoken Urdu | A worker who cannot type **cannot create a profile at all** — the app falls back to manual tap-only input |
-| **Gemini API** (problem detection) | Detects trade + urgency from a customer's spoken problem | Customer must manually select a trade from the grid instead of speaking |
-| **Gemini API** (review summary) | Generates a one-line Urdu summary of all reviews | Trust panel shows individual reviews but no summary line |
+| **OpenAI API** (primary) / **Gemini API** (fallback) — profile extraction | Extracts name, trade, area, rate, experience from spoken Urdu | A worker who cannot type **cannot create a profile at all** — the app falls back to manual tap-only input |
+| **OpenAI API** (primary) / **Gemini API** (fallback) — problem detection | Detects trade + urgency from a customer's spoken problem | Customer must manually select a trade from the grid instead of speaking |
+| **OpenAI API** (primary) / **Gemini API** (fallback) — review summary | Generates a one-line Urdu summary of all reviews | Trust panel shows individual reviews but no summary line |
 | **Web Speech API** (`webkitSpeechRecognition`) | Speech-to-text in `ur-PK` with `en-US` fallback | Voice input buttons stop working; user must type (Chrome only) |
 | **Web Speech API** (`speechSynthesis`) | Read-aloud buttons for worker cards, instructions, confirmations | Read-aloud buttons become silent; no functional impact |
 | **MediaRecorder API** | Records voice notes (≤20s) saved as base64 data URLs | Voice note recording fails; text messaging still works |
@@ -68,7 +68,7 @@ Millions of skilled trade workers in Pakistan's informal economy are locked out 
 - **Styling:** Tailwind CSS + custom theme (orange #FF6B00 primary, Poppins + Noto Nastaliq Urdu fonts)
 - **Components:** shadcn/ui (Button, Card, Badge, Input) + lucide-react icons
 - **Database:** Supabase Postgres via `@supabase/supabase-js` (RLS disabled, anon key)
-- **AI:** Google Gemini 2.0 Flash via server-side API route
+- **AI:** OpenAI (primary, gpt-4o-mini default) + Google Gemini 3.8 Flash (fallback) via server-side API route
 - **Voice:** Web Speech API + MediaRecorder
 - **Deploy:** Vercel
 
@@ -87,7 +87,9 @@ Create `.env.local` with:
 ```
 NEXT_PUBLIC_SUPABASE_URL=<your-supabase-project-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-key>
-GEMINI_API_KEY=<your-gemini-api-key>
+OPENAI_API_KEY=<your-openai-api-key>
+OPENAI_MODEL=gpt-4o-mini          # optional, defaults to gpt-4o-mini
+GEMINI_API_KEY=<your-gemini-api-key>   # fallback provider
 ```
 
 ```bash
