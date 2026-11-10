@@ -45,6 +45,7 @@ function CustomerPageInner() {
   // Search + AI state
   const [searching, setSearching] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
+  const [aiDebugMsg, setAiDebugMsg] = useState("");
   const [shakeInput, setShakeInput] = useState(false);
 
   // Workers + booking
@@ -113,14 +114,17 @@ function CustomerPageInner() {
   // AI detect with keyword fallback
   const detectProblem = async (text) => {
     setAiFailed(false);
+    setAiDebugMsg("");
+    let debugInfo = "";
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task: "detect", text }),
       });
-      const data = await res.json();
-      if (data.result && !data.error) {
+      let data;
+      try { data = await res.json(); } catch { debugInfo = `HTTP ${res.status}`; }
+      if (data?.result && !data?.error) {
         if (data.result.trade && TRADES.includes(data.result.trade)) {
           setAiTrade(data.result.trade);
           setFilterTrade(data.result.trade);
@@ -129,16 +133,19 @@ function CustomerPageInner() {
         setAiSummary(data.result.summary || "");
         return;
       }
-    } catch {
-      // fall through to keyword fallback
+      if (data?.message) debugInfo = data.message;
+      else if (!debugInfo) debugInfo = `HTTP ${res.status}`;
+    } catch (err) {
+      debugInfo = err.message || "fetch failed";
     }
     // Keyword fallback
     const matched = keywordDetect(text);
     if (matched) {
       setAiTrade(matched);
       setFilterTrade(matched);
-      setAiFailed(true);
     }
+    setAiFailed(true);
+    setAiDebugMsg(debugInfo);
   };
 
   // Voice input
@@ -308,6 +315,9 @@ function CustomerPageInner() {
       {aiFailed && (
         <div className="bg-amber/10 border border-amber/30 rounded-2xl p-3 text-sm text-ink/70">
           {t("aiOfflineNote")}
+          {aiDebugMsg && (
+            <p className="font-mono text-[11px] text-ink/40 mt-1">DEBUG: {aiDebugMsg}</p>
+          )}
         </div>
       )}
 
