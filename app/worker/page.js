@@ -132,9 +132,11 @@ export default function WorkerPage() {
     fetchDashboard();
   };
 
-  // Reject job
+  // Reject job — also free the worker (customer page marks unavailable at booking)
   const handleReject = async (jobId) => {
     await supabase.from("jobs").update({ status: "rejected" }).eq("id", jobId);
+    await supabase.from("workers").update({ available: true }).eq("id", workerId);
+    setAvailable(true);
     fetchDashboard();
   };
 
