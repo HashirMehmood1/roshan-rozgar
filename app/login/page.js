@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/translations";
+import { useSpeech } from "@/hooks/useSpeech";
+import MicButton from "@/components/MicButton";
 import { Phone, Lock, User, MapPin, Wrench, Briefcase } from "lucide-react";
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
@@ -14,10 +16,13 @@ const DEFAULT_RATES = {
 
 export default function LoginPage() {
   const { t, dir } = useLanguage();
+  const { startListening, stopListening } = useSpeech();
   const router = useRouter();
   const [tab, setTab] = useState("login"); // login | signup
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [listeningSignup, setListeningSignup] = useState(false);
+  const [listeningLogin, setListeningLogin] = useState(false);
 
   // Login fields
   const [loginPhone, setLoginPhone] = useState("");
@@ -31,6 +36,57 @@ export default function LoginPage() {
   const [area, setArea] = useState("G-9");
   const [rate, setRate] = useState(1500);
   const [experience, setExperience] = useState(3);
+
+  // Urdu/Arabic-Indic digit normalization
+  const normalizeDigits = (str) =>
+    str.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d).toString())
+       .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
+
+  // Extract phone from spoken text
+  const extractPhone = (text) => {
+    const normalized = normalizeDigits(text).replace(/[^0-9]/g, "");
+    const match = normalized.match(/(03\d{9})/);
+    return match ? match[1] : null;
+  };
+
+  // Signup voice: speak profile → AI extract → prefill
+  const handleSignupVoice = () => {
+    if (listeningSignup) { stopListening(); setListeningSignup(false); return; }
+    setListeningSignup(true);
+    startListening(async (transcript) => {
+      setListeningSignup(false);
+      try {
+        const res = await fetch("/api/ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: "profile", text: transcript }),
+        });
+        const data = await res.json();
+        if (!data.error) {
+          if (data.name) setName(data.name);
+          if (TRADES.includes(data.trade)) { setTrade(data.trade); setRate(DEFAULT_RATES[data.trade] || 1500); }
+          if (AREAS.includes(data.area)) setArea(data.area);
+          if (data.rate) setRate(Number(data.rate));
+          if (data.experience_years) setExperience(Number(data.experience_years));
+        }
+      } catch { /* AI failed — user fills manually */ }
+    });
+  };
+
+  // Login voice: speak phone number
+  const handleLoginVoice = () => {
+    if (listeningLogin) { stopListening(); setListeningLogin(false); return; }
+    setListeningLogin(true);
+    startListening((transcript) => {
+      setListeningLogin(false);
+      const phone = extractPhone(transcript);
+      if (phone) {
+        setLoginPhone(phone);
+      } else {
+        setError(t("voicePhoneError"));
+      }
+    });
+  };
 
   const handleLogin = async () => {
     setError("");
@@ -148,16 +204,20 @@ export default function LoginPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-ink/70 mb-1">{t("phone")}</label>
-                <div className="relative">
-                  <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
-                  <input
-                    type="tel"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    placeholder="03XX-XXXXXXX"
-                    className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
+                    <input
+                      type="tel"
+                      value={loginPhone}
+                      onChange={(e) => setLoginPhone(e.target.value)}
+                      placeholder="03XX-XXXXXXX"
+                      className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg focus:border-primary outline-none"
+                    />
+                  </div>
+                  <MicButton listening={listeningLogin} onClick={handleLoginVoice} size={56} />
                 </div>
+                <p className="text-xs text-ink/50 mt-1 font-nastaliq" dir="rtl">{t("speakPhone")}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink/70 mb-1">{t("pin")}</label>
@@ -187,6 +247,11 @@ export default function LoginPage() {
           {/* ─── SIGNUP TAB ─── */}
           {tab === "signup" && (
             <div className="space-y-4">
+              {/* Voice profile input */}
+              <div className="flex flex-col items-center gap-2 py-2">
+                <MicButton listening={listeningSignup} onClick={handleSignupVoice} size={72} />
+                <p className="text-sm text-ink/60 font-nastaliq text-center" dir="rtl">{t("speakProfile")}</p>
+              </div>
               {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-ink/70 mb-1">{t("name")}</label>
@@ -232,6 +297,7 @@ export default function LoginPage() {
                     className="w-full min-h-[56px] pl-12 pr-4 border-2 border-card-border rounded-xl text-lg tracking-[0.5em] text-center focus:border-primary outline-none"
                   />
                 </div>
+                <p className="text-xs text-ink/50 mt-1 font-nastaliq" dir="rtl">{t("pinPrivateNote")}</p>
               </div>
 
               {/* Trade */}
