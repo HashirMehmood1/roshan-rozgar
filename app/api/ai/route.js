@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const TRADES = ["electrician", "plumber", "ac_technician", "carpenter", "mechanic", "painter"];
 const AREAS = ["G-9", "F-11", "I-8", "H-12", "G-13", "F-7"];
@@ -70,7 +70,8 @@ export async function POST(request) {
     });
 
     if (!res.ok) {
-      return Response.json({ error: true, message: `Gemini HTTP ${res.status}` }, { status: 500 });
+      const errBody = await res.text().catch(() => "");
+      return Response.json({ error: true, message: `Gemini HTTP ${res.status}: ${errBody.slice(0, 200)}` }, { status: 500 });
     }
 
     const data = await res.json();
